@@ -9,10 +9,12 @@ import {
   REDS_MOD_CANONICAL_PATH_PREFIX,
   ARCHIVE_ONLY_CANONICAL_PATH_PREFIX,
   InstallerType,
+} from "../../src/installers";
+import {
   SHADERS_PATH,
   INI_MOD_PATH,
   RESHADE_MOD_PATH,
-} from "../../src/installers";
+} from "../../src/textfiles";
 
 export type InFiles = string[];
 
