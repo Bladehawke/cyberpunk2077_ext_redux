@@ -1,4 +1,5 @@
 import { win32 } from "path";
+import { readFileSync } from "fs";
 import KeyTree from "key-tree";
 import {
   VortexAPI,
@@ -15,8 +16,6 @@ import {
   redWithInvalidFilesErrorDialog,
   fallbackInstallerReachedErrorDialog,
 } from "./dialogs";
-import { readFileSync } from "fs"; // We really should be using this from
-// vortex-api but the tests can't do that
 
 // Ensure we're using win32 conventions
 const path = win32;
@@ -166,6 +165,15 @@ export const notInstallableMod: VortexWrappedInstallFunc = (
 // }
 
 /**
+ * @todo implement logic
+ * @param _file a file to check
+ * @returns true is the file is a reshade ini file, false otherwise
+ */
+function reshadeINI(_file: string): boolean {
+  return false;
+}
+
+/**
  *
  * @param file Full file path string to check
  * @returns true if it looks like an INI mod file
@@ -173,7 +181,7 @@ export const notInstallableMod: VortexWrappedInstallFunc = (
  * @todo distinguish Reshade ini files: https://github.com/E1337Kat/cyberpunk2077_ext_redux/issues/8
  */
 function matchIniFile(file: string): boolean {
-  return path.extname(file).toLowerCase() === INI_MOD_EXT;
+  return path.extname(file).toLowerCase() === INI_MOD_EXT && !reshadeINI(file);
 }
 
 const matchRedscript = (file: string) =>
@@ -887,16 +895,8 @@ export const testForIniMod: VortexWrappedTestSupportedFunc = (
   files: string[],
   _gameId: string,
 ): Promise<VortexTestResult> => {
-  // Make sure we're able to support this mod.
-  const correctGame = _gameId === GAME_ID;
   log("info", "Checking for INI files: ", _gameId);
-  if (!correctGame) {
-    // no mods?
-    return Promise.resolve({
-      supported: false,
-      requiredFiles: [],
-    });
-  }
+
   const filtered = files.filter(
     (file: string) => path.extname(file).toLowerCase() === INI_MOD_EXT,
   );
@@ -998,7 +998,7 @@ export const installIniMod: VortexWrappedInstallFunc = (
  * Checks to see if the mod has any expected files in unexpected places
  * @param files list of files
  * @param gameId The internal game id
- *   * @returns Promise which details if the files passed in need to make use of a specific installation method
+ * @returns Promise which details if the files passed in need to make use of a specific installation method
  */
 export const testAnyOtherModFallback: VortexWrappedTestSupportedFunc = (
   _api: VortexAPI,
@@ -1007,19 +1007,6 @@ export const testAnyOtherModFallback: VortexWrappedTestSupportedFunc = (
   gameId: string,
 ): Promise<VortexTestResult> => {
   log("debug", "Checking Files: ", files);
-
-  // Make sure we're able to support this mod.
-  const correctGame = gameId === GAME_ID;
-  log("info", "Entering fallback installer: ", gameId);
-  if (!correctGame) {
-    return Promise.resolve({
-      supported: false,
-      requiredFiles: [],
-    });
-  }
-
-  // const hasIniMod = files.some(matchIniFile);
-  // log("debug", "Probably INI mods: ", hasIniMod);
 
   // if (hasIniMod) {
   //   log("info", "mod supported by this installer");
@@ -1047,28 +1034,13 @@ export const installAnyModWithBasicFixes: VortexWrappedInstallFunc = (
   files: string[],
   _destinationPath: string,
 ): Promise<VortexInstallResult> => {
-  // Gather any INI files
-
   log("info", "Fallback installer. Copying 1:1: ", files);
-  const filtered = files.filter((file: string) => !file.endsWith(path.sep));
-  const instr = filtered.map((file) => ({
-    type: "copy",
-    source: file,
-    destination: file,
-  }));
-  log("debug", "Installing mod files with: ", instr);
 
-  const instructions = [].concat(instr);
+  const instructions = instructionsForSameSourceAndDestPaths(files);
 
   const message =
     "The Fallback installer was reached.  The mod has been installed, but may not function as expected.";
-  fallbackInstallerReachedErrorDialog(
-    _api,
-    log,
-    message,
-    filtered,
-    instructions,
-  );
+  fallbackInstallerReachedErrorDialog(_api, log, message, files, []);
 
   return Promise.resolve({ instructions });
 };
@@ -1135,14 +1107,14 @@ const installers: Installer[] = [
     id: "cp2077-axl-mod",
     testSupported: notSupportedModType,
     install: notInstallableMod,
-  },*/
+  },
   {
     type: InstallerType.INI,
     id: "cp2077-ini-mod",
-    testSupported: testForIniMod,
-    install: installIniMod,
+    testSupported: notSupportedModType,
+    install: notInstallableMod,
   },
-  /*  {
+  {
     type: InstallerType.Config,
     id: "cp2077-config-mod",
     testSupported: notSupportedModType,
